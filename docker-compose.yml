@@ -1,0 +1,72 @@
+version: "3"
+
+services:
+  sample-http:
+    build:
+      context: internal/sample/docker/app
+    volumes:
+      - ./internal:/internal
+    working_dir: /internal/sample
+    env_file:
+      - ./internal/sample/configs/.env
+    environment:
+      SERVER_TO_RUN: http
+      APP_HTTP_PORT: 3031
+      DB_HOST: mysql-master
+      DB_USER: root
+      DB_PASS: my_root_password
+    ports:
+      - 3031:3031
+    depends_on:
+      - mysql-master
+
+  mysql-master:
+    image: docker.io/bitnami/mysql:8.0
+    ports:
+      - 3306
+    volumes:
+      - "mysql_master_data:/bitnami/mysql/data"
+    environment:
+      - MYSQL_REPLICATION_MODE=master
+      - MYSQL_REPLICATION_USER=repl_user
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_ROOT_PASSWORD=my_root_password
+      - MYSQL_DATABASE=sample
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/scripts/mysql/healthcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  mysql-slave:
+    image: docker.io/bitnami/mysql:8.0
+    ports:
+      - 3306
+    depends_on:
+      - mysql-master
+    environment:
+      - MYSQL_REPLICATION_MODE=slave
+      - MYSQL_REPLICATION_USER=repl_user
+      - MYSQL_MASTER_HOST=mysql-master
+      - MYSQL_MASTER_PORT_NUMBER=3306
+      - MYSQL_MASTER_ROOT_PASSWORD=my_root_password
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/scripts/mysql/healthcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  phpmyadmin:
+    image: docker.io/bitnami/phpmyadmin:5
+    restart: always
+    environment:
+      DATABASE_HOST: mysql-master
+    ports:
+      - 3030:8080
+
+volumes:
+  mysql_master_data:
+    driver: local
